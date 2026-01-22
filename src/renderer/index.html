@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'">
+  <title>StorageMap</title>
+  <link rel="stylesheet" href="styles/main.css">
+</head>
+<body>
+  <div id="app">
+    <aside id="sidebar">
+      <div class="sidebar-header">
+        <h1>StorageMap</h1>
+      </div>
+      <div id="volume-list" class="sidebar-section">
+        <h2>Volumes</h2>
+        <ul id="volumes"></ul>
+      </div>
+      <div id="donut-container" class="sidebar-section">
+        <h2>Usage</h2>
+        <div id="donut-chart"></div>
+        <div id="usage-label"></div>
+      </div>
+    </aside>
+
+    <main id="main-content">
+      <header id="header">
+        <nav id="breadcrumb">
+          <button id="btn-back" class="nav-btn" disabled>
+            <span>←</span>
+          </button>
+          <button id="btn-forward" class="nav-btn" disabled>
+            <span>→</span>
+          </button>
+          <button id="btn-home" class="nav-btn">
+            <span>⌂</span>
+          </button>
+          <div id="breadcrumb-path"></div>
+        </nav>
+
+        <div id="search-container">
+          <input type="text" id="search-input" placeholder="Search files...">
+          <button id="btn-clear-search" class="hidden">×</button>
+        </div>
+
+        <div id="view-tabs">
+          <button class="tab-btn active" data-view="treemap">Treemap</button>
+          <button class="tab-btn" data-view="sunburst">Sunburst</button>
+          <button class="tab-btn" data-view="barchart">Bar Chart</button>
+          <button class="tab-btn" data-view="columns">Columns</button>
+          <button class="tab-btn" data-view="timeline">Timeline</button>
+          <button class="tab-btn" data-view="duplicates">Duplicates</button>
+        </div>
+
+        <div id="header-actions">
+          <button id="btn-scan" class="primary-btn">Scan</button>
+          <label id="treemap-toggle" class="toggle-label">
+            <input type="checkbox" id="ordered-treemap">
+            <span>Ordered</span>
+          </label>
+        </div>
+      </header>
+
+      <div id="progress-container" class="hidden">
+        <div id="progress-bar">
+          <div id="progress-fill"></div>
+        </div>
+        <div id="progress-text">Scanning...</div>
+        <button id="btn-cancel-scan">Cancel</button>
+      </div>
+
+      <div id="visualization-container">
+        <div id="treemap-view" class="viz-view active"></div>
+        <div id="sunburst-view" class="viz-view"></div>
+        <div id="barchart-view" class="viz-view">
+          <div id="barchart-tabs">
+            <button class="barchart-tab active" data-type="folders">Largest Folders</button>
+            <button class="barchart-tab" data-type="files">Largest Files</button>
+          </div>
+          <div id="barchart-content"></div>
+        </div>
+        <div id="columns-view" class="viz-view"></div>
+        <div id="timeline-view" class="viz-view">
+          <div id="timeline-info">
+            <span id="last-scanned"></span>
+            <button id="btn-save-snapshot">Save Snapshot</button>
+          </div>
+          <div id="timeline-chart"></div>
+        </div>
+        <div id="duplicates-view" class="viz-view">
+          <div id="duplicates-header">
+            <button id="btn-find-duplicates" class="primary-btn">Find Duplicates</button>
+            <span id="duplicates-status"></span>
+          </div>
+          <div id="duplicates-list"></div>
+        </div>
+      </div>
+
+      <div id="tooltip" class="hidden">
+        <div id="tooltip-name"></div>
+        <div id="tooltip-size"></div>
+        <div id="tooltip-modified"></div>
+        <div id="tooltip-path"></div>
+      </div>
+    </main>
+
+    <footer id="caddy">
+      <div id="caddy-header">
+        <h3>Deletion Caddy</h3>
+        <span id="caddy-count">0 items</span>
+        <span id="caddy-size">0 B</span>
+      </div>
+      <div id="caddy-items"></div>
+      <div id="caddy-actions">
+        <button id="btn-clear-caddy" disabled>Clear</button>
+        <button id="btn-delete-caddy" class="danger-btn" disabled>Move to Trash</button>
+        <button id="btn-secure-delete" class="danger-btn" disabled>Secure Delete</button>
+      </div>
+    </footer>
+  </div>
+
+  <div id="modal-overlay" class="hidden">
+    <div id="modal">
+      <div id="modal-header">
+        <h2 id="modal-title"></h2>
+        <button id="modal-close">×</button>
+      </div>
+      <div id="modal-content"></div>
+      <div id="modal-actions"></div>
+    </div>
+  </div>
+
+  <script src="index.js"></script>
+</body>
+</html>
