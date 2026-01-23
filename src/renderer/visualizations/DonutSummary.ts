@@ -1,10 +1,11 @@
 import * as d3 from 'd3';
 import { store } from '../state/store';
 import { FileNode, FileCategory } from '../../shared/types';
-import { CATEGORIES, getCategoryColor } from '../../shared/categories';
+import { CATEGORIES, getCategoryColor, getCategoryName } from '../../shared/categories';
 
 export class DonutSummary {
   private svg: d3.Selection<SVGSVGElement, unknown, HTMLElement, any> | null = null;
+  private tooltip: HTMLElement | null = null;
   private width = 180;
   private height = 180;
   private radius = 70;
@@ -20,6 +21,24 @@ export class DonutSummary {
       .attr('height', this.height)
       .append('g')
       .attr('transform', `translate(${this.width / 2}, ${this.height / 2})`) as any;
+
+    // Create tooltip element
+    this.tooltip = document.createElement('div');
+    this.tooltip.className = 'donut-tooltip';
+    this.tooltip.style.cssText = `
+      position: fixed;
+      padding: 8px 12px;
+      background: var(--bg-primary);
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      font-size: 12px;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.15s;
+      z-index: 1000;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    `;
+    document.body.appendChild(this.tooltip);
   }
 
   render(): void {
@@ -64,11 +83,33 @@ export class DonutSummary {
     arcs.merge(newArcs as any)
       .attr('d', arc)
       .attr('fill', d => d.data.color)
+      .on('mouseenter', (event, d) => {
+        if (this.tooltip) {
+          const percent = ((d.data.size / totalUsed) * 100).toFixed(1);
+          this.tooltip.innerHTML = `
+            <strong>${getCategoryName(d.data.category)}</strong><br>
+            ${this.formatBytes(d.data.size)} (${percent}%)
+          `;
+          this.tooltip.style.opacity = '1';
+        }
+      })
+      .on('mousemove', (event) => {
+        if (this.tooltip) {
+          this.tooltip.style.left = `${event.clientX + 10}px`;
+          this.tooltip.style.top = `${event.clientY + 10}px`;
+        }
+      })
+      .on('mouseleave', () => {
+        if (this.tooltip) {
+          this.tooltip.style.opacity = '0';
+        }
+      })
       .on('click', (_event, d) => {
         console.log('Clicked category:', d.data.category);
       });
 
-    this.updateLabel(totalUsed, state.selectedVolume.totalBytes);
+    // Use actual disk usage from volume info, not scanned totals
+    this.updateLabel(state.selectedVolume.usedBytes, state.selectedVolume.totalBytes);
   }
 
   private renderEmpty(): void {
