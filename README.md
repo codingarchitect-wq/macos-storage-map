@@ -4,6 +4,8 @@ A macOS storage visualizer that helps you understand and manage your disk space 
 
 ![StorageMap](https://img.shields.io/badge/platform-macOS-lightgrey) ![Electron](https://img.shields.io/badge/electron-28.0-blue) ![License](https://img.shields.io/badge/license-MIT-green)
 
+![StorageMap Demo](images/demo.gif)
+
 ## Features
 
 ### Multiple Visualization Modes
