@@ -42,7 +42,43 @@ A macOS storage visualizer that helps you understand and manage your disk space 
 
 ## Screenshots
 
-*Treemap visualization showing disk usage by file category*
+### Treemap View
+Squarified treemap showing files and folders as nested rectangles, sized proportionally to disk usage.
+
+![Treemap](images/01-treemap.png)
+
+### Sunburst View
+Radial partition layout showing the directory hierarchy as concentric rings.
+
+![Sunburst](images/02-sunburst.png)
+
+Drill down into directories by clicking on segments:
+
+![Sunburst Drilldown](images/03-sunburst-drilldown.png)
+
+### Bar Chart View
+Simple bar chart showing largest files and folders with drill-down navigation.
+
+![Bar Chart](images/04-bar-chart.png)
+
+![Bar Chart Drilldown](images/05-bar-chart-drilldown.png)
+
+### Columns View
+OmniDiskSweeper-style miller column view for drilling down through directories.
+
+![Columns View](images/06-columns-view-with-drilldown.png)
+
+### Duplicate Detection
+Find and manage duplicate files with content-based hashing.
+
+![Duplicates](images/07-duplicates1.png)
+
+![Duplicates Groups](images/08-duplicates2.png)
+
+### Storage Summary
+Donut chart showing category breakdown with disk usage statistics.
+
+![Summary Donut](images/09-summary-donut.png)
 
 ## Requirements
 
