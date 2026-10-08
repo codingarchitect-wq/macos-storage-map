@@ -53,7 +53,7 @@ export class Sunburst {
     const prunedData = this.pruneTree(state.currentPath, MAX_DEPTH);
 
     const hierarchy = d3.hierarchy(prunedData)
-      .sum(d => d.isDirectory ? 0 : d.size)
+      .sum(d => d.isDirectory && d.children ? 0 : d.size)
       .sort((a, b) => (b.value || 0) - (a.value || 0));
 
     const partition = d3.partition<FileNode>()
@@ -144,7 +144,8 @@ export class Sunburst {
           isDirectory: false,
           modifiedTime: Date.now(),
           createdTime: Date.now(),
-          category: 'other'
+          category: 'other',
+          isAggregate: true
         });
       }
     }

@@ -11,6 +11,11 @@ export interface FileNode {
   isSymlink?: boolean;
   isRestricted?: boolean;
   hash?: string;
+  // Directory whose children exist in the main process but weren't sent to the renderer yet
+  childrenUnloaded?: boolean;
+  // Placeholder summing several items ("N more items", "Other small files"). Its `path` is the parent
+  // folder's, so it must never be acted on as a file: trashing that path would remove the whole folder.
+  isAggregate?: boolean;
 }
 
 export type FileCategory =
@@ -46,6 +51,11 @@ export interface ScanResult {
   totalFiles: number;
   scanDuration: number;
   volumeInfo: VolumeInfo;
+}
+
+// Sent to the renderer on scan completion: the tree trimmed to a node budget, plus totals for the whole scan
+export interface ScanComplete extends ScanResult {
+  categoryTotals: CategorySnapshot[];
 }
 
 export interface VolumeInfo {
@@ -97,8 +107,8 @@ export interface IpcChannels {
   'scan:start': (path: string) => void;
   'scan:stop': () => void;
   'scan:progress': (progress: ScanProgress) => void;
-  'scan:batch': (nodes: FileNode[]) => void;
-  'scan:complete': (result: ScanResult) => void;
+  'scan:complete': (result: ScanComplete) => void;
+  'scan:getSubtree': (path: string, maxNodes: number) => Promise<FileNode | null>;
   'scan:error': (error: string) => void;
   'file:delete': (paths: string[]) => Promise<{ success: boolean; error?: string }>;
   'file:secureDelete': (paths: string[]) => Promise<{ success: boolean; error?: string }>;

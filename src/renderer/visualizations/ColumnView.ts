@@ -113,7 +113,7 @@ export class ColumnView {
     if (sortedChildren.length === 0) {
       const emptyEl = document.createElement('div');
       emptyEl.className = 'column-empty';
-      emptyEl.textContent = 'Empty folder';
+      emptyEl.textContent = column.node.childrenUnloaded ? 'Loading…' : 'Empty folder';
       columnEl.appendChild(emptyEl);
     }
 
@@ -128,8 +128,9 @@ export class ColumnView {
     this.columns = this.columns.slice(0, columnIndex + 1);
 
     // If it's a directory, add a new column
-    if (child.isDirectory && child.children && child.children.length > 0) {
+    if (child.isDirectory && (child.childrenUnloaded || (child.children && child.children.length > 0))) {
       this.columns.push({ node: child, selectedChild: null });
+      store.ensureChildrenLoaded(child);
     }
 
     this.render();

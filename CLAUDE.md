@@ -41,11 +41,12 @@ This is an Electron app with a clear main/renderer process split:
 ### IPC Communication
 - Main process exposes API via `src/preload/preload.ts` using contextBridge
 - Renderer accesses via `window.storageMap.*`
-- Scan results stream via IPC events (`scan:progress`, `scan:batch`, `scan:complete`)
+- Scans report via IPC events (`scan:progress`, `scan:complete`). The main process keeps the full tree; `scan:complete` carries a copy trimmed to `VIEW_NODE_BUDGET` nodes (largest directories expanded first, the rest flagged `childrenUnloaded`), and the renderer fetches more with `scan:getSubtree` as the user navigates
 
 ## Key Constraints
 
 - **Memory limits**: Scanner limits depth (MAX_DEPTH=10), children per directory (1000), and excludes system paths to prevent OOM
+- **Scanner robustness**: Every fs call has a 10s timeout (timed-out folders become restricted); cloud File Provider folders (`~/Library/CloudStorage`, `~/Library/Mobile Documents`) are skipped by default
 - **Visualization limits**: Treemap limits to 2000 nodes, Sunburst to 1500 arcs to maintain performance
 - **Duplicate detection**: Uses partial hashing (first/last 4KB) for files, limits to 50,000 files max
 

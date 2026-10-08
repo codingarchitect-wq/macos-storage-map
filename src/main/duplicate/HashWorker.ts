@@ -194,8 +194,8 @@ export function collectAllFiles(node: FileNode, maxFiles: number = MAX_FILES_TO_
     if (count >= maxFiles) return;
 
     if (!n.isDirectory) {
-      // Only collect files that could be duplicates
-      if (n.size >= MIN_FILE_SIZE && n.size <= MAX_FILE_SIZE) {
+      // Only collect files that could be duplicates (placeholders aren't files; their path is a folder)
+      if (!n.isAggregate && n.size >= MIN_FILE_SIZE && n.size <= MAX_FILE_SIZE) {
         files.push({
           id: n.id,
           name: n.name,

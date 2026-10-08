@@ -28,6 +28,7 @@ export class App {
   private timeline: Timeline;
   private duplicatesView: DuplicatesView;
   private modal: Modal;
+  private lastVizDeps: unknown[] = [];
 
   constructor() {
     this.sidebar = new Sidebar();
@@ -98,7 +99,7 @@ export class App {
     });
 
     window.storageMap.scan.onComplete(result => {
-      store.completeScan(result.root, result.volumeInfo);
+      store.completeScan(result.root, result.volumeInfo, result.categoryTotals);
     });
 
     window.storageMap.scan.onError(error => {
@@ -173,25 +174,37 @@ export class App {
       treemapToggle.style.display = state.currentView === 'treemap' ? 'flex' : 'none';
     }
 
-    switch (state.currentView) {
-      case 'treemap':
-        this.treemap.render();
-        break;
-      case 'sunburst':
-        this.sunburst.render();
-        break;
-      case 'barchart':
-        this.barChart.render();
-        break;
-      case 'columns':
-        this.columnView.render();
-        break;
-      case 'timeline':
-        this.timeline.render();
-        break;
-      case 'duplicates':
-        this.duplicatesView.render();
-        break;
+    // Visualizations rebuild their DOM from the tree, so skip them when nothing they read has changed
+    // (scan progress ticks, volume list refreshes, caddy edits)
+    const vizDeps = [
+      state.currentView, state.currentPath, state.treeVersion, state.scanResult, state.selectedVolume,
+      state.searchQuery, state.highlightedNodes, state.preferences, state.barchartType,
+      state.duplicates, state.isFindingDuplicates, state.duplicateProgress
+    ];
+    const vizChanged = vizDeps.some((dep, i) => dep !== this.lastVizDeps[i]);
+    this.lastVizDeps = vizDeps;
+
+    if (vizChanged) {
+      switch (state.currentView) {
+        case 'treemap':
+          this.treemap.render();
+          break;
+        case 'sunburst':
+          this.sunburst.render();
+          break;
+        case 'barchart':
+          this.barChart.render();
+          break;
+        case 'columns':
+          this.columnView.render();
+          break;
+        case 'timeline':
+          this.timeline.render();
+          break;
+        case 'duplicates':
+          this.duplicatesView.render();
+          break;
+      }
     }
 
     this.sidebar.render();

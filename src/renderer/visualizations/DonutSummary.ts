@@ -1,6 +1,6 @@
 import * as d3 from 'd3';
 import { store } from '../state/store';
-import { FileNode, FileCategory } from '../../shared/types';
+import { FileCategory, CategorySnapshot } from '../../shared/types';
 import { CATEGORIES, getCategoryColor, getCategoryName } from '../../shared/categories';
 
 export class DonutSummary {
@@ -51,7 +51,7 @@ export class DonutSummary {
       return;
     }
 
-    const categoryTotals = this.calculateCategoryTotals(state.scanResult.root);
+    const categoryTotals = this.toCategoryMap(state.scanResult.categoryTotals);
     const totalUsed = Array.from(categoryTotals.values()).reduce((a, b) => a + b, 0);
 
     const data = Array.from(categoryTotals.entries())
@@ -132,25 +132,18 @@ export class DonutSummary {
     this.updateLabel(0, 0);
   }
 
-  private calculateCategoryTotals(root: FileNode): Map<FileCategory, number> {
+  // Totals are computed over the full scan in the main process; the renderer's tree is trimmed
+  private toCategoryMap(snapshots: CategorySnapshot[]): Map<FileCategory, number> {
     const totals = new Map<FileCategory, number>();
 
     for (const cat of Object.keys(CATEGORIES) as FileCategory[]) {
       totals.set(cat, 0);
     }
 
-    const traverse = (node: FileNode) => {
-      if (!node.isDirectory) {
-        const current = totals.get(node.category) || 0;
-        totals.set(node.category, current + node.size);
-      } else if (node.children) {
-        for (const child of node.children) {
-          traverse(child);
-        }
-      }
-    };
+    for (const { category, bytes } of snapshots) {
+      totals.set(category, bytes);
+    }
 
-    traverse(root);
     return totals;
   }
 

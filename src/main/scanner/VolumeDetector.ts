@@ -97,9 +97,13 @@ async function getFilesystemType(mountPoint: string): Promise<string> {
 
 export function watchVolumes(callback: (volumes: VolumeInfo[]) => void): () => void {
   let intervalId: NodeJS.Timeout;
+  let lastSnapshot = '';
 
   const check = async () => {
     const volumes = await listVolumes();
+    const snapshot = JSON.stringify(volumes);
+    if (snapshot === lastSnapshot) return;
+    lastSnapshot = snapshot;
     callback(volumes);
   };
 

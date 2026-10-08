@@ -1,38 +1,41 @@
 import { ipcMain } from 'electron';
-import { FileScanner } from '../scanner/FileScanner';
+import { FileScanner, ScanAbortedError } from '../scanner/FileScanner';
+import { trimTree } from '../scanner/TreeTrimmer';
 import { listVolumes, watchVolumes } from '../scanner/VolumeDetector';
 import { moveToTrash, revealInFinder } from '../file-ops/Trash';
 import { secureDelete } from '../file-ops/SecureDelete';
 import { DuplicateFinder, collectAllFiles } from '../duplicate/HashWorker';
 import { getMainWindow, startPowerAssertion, stopPowerAssertion, getDatabase } from '../index';
-import { FileNode, ScanResult, CategorySnapshot, FileCategory } from '../../shared/types';
+import { FileNode, ScanComplete, CategorySnapshot, FileCategory } from '../../shared/types';
 import { CATEGORIES } from '../../shared/categories';
+import { VIEW_NODE_BUDGET, findNodeByPath } from '../../shared/tree';
 
 let currentScanner: FileScanner | null = null;
 let duplicateFinder: DuplicateFinder | null = null;
 let stopVolumeWatch: (() => void) | null = null;
+// Full tree of the last completed scan. The renderer only gets trimmed copies (see scan:getSubtree).
+let lastScanRoot: FileNode | null = null;
 
 export function setupIpcHandlers(): void {
   ipcMain.handle('scan:start', async (_event, scanPath: string) => {
-    if (currentScanner) {
-      currentScanner.abort();
-    }
+    currentScanner?.abort();
+    lastScanRoot = null;
 
-    currentScanner = new FileScanner({ skipSymlinks: true });
+    const scanner = new FileScanner({ skipSymlinks: true });
+    currentScanner = scanner;
     const mainWindow = getMainWindow();
 
-    currentScanner.on('progress', (progress) => {
-      mainWindow?.webContents.send('scan:progress', progress);
-    });
-
-    currentScanner.on('batch', (nodes: FileNode[]) => {
-      mainWindow?.webContents.send('scan:batch', nodes);
+    scanner.on('progress', (progress) => {
+      if (currentScanner === scanner) {
+        mainWindow?.webContents.send('scan:progress', progress);
+      }
     });
 
     startPowerAssertion();
 
     try {
-      const result = await currentScanner.scan(scanPath);
+      const result = await scanner.scan(scanPath);
+      if (currentScanner !== scanner) return;
 
       const categories = calculateCategoryTotals(result.root);
       const db = getDatabase();
@@ -44,16 +47,32 @@ export function setupIpcHandlers(): void {
         categories
       });
 
-      mainWindow?.webContents.send('scan:complete', result);
-      return result;
+      lastScanRoot = result.root;
+      const complete: ScanComplete = {
+        ...result,
+        root: trimTree(result.root, VIEW_NODE_BUDGET),
+        categoryTotals: categories
+      };
+      mainWindow?.webContents.send('scan:complete', complete);
     } catch (err) {
+      // A cancelled or superseded scan has nothing to report; the renderer already moved on
+      if (err instanceof ScanAbortedError || currentScanner !== scanner) return;
+
       const error = err instanceof Error ? err.message : 'Unknown error';
       mainWindow?.webContents.send('scan:error', error);
       throw err;
     } finally {
-      stopPowerAssertion();
-      currentScanner = null;
+      // Only clean up if no newer scan has taken over
+      if (currentScanner === scanner) {
+        currentScanner = null;
+        stopPowerAssertion();
+      }
     }
+  });
+
+  ipcMain.handle('scan:getSubtree', async (_event, dirPath: string, maxNodes: number) => {
+    const node = lastScanRoot && findNodeByPath(lastScanRoot, dirPath);
+    return node ? trimTree(node, Math.min(maxNodes, VIEW_NODE_BUDGET)) : null;
   });
 
   ipcMain.handle('scan:stop', async () => {
@@ -118,13 +137,14 @@ export function setupIpcHandlers(): void {
     }
   });
 
-  ipcMain.handle('duplicates:scan', async (_event, rootNode: FileNode) => {
+  ipcMain.handle('duplicates:scan', async (_event, rootPath: string) => {
     if (!duplicateFinder) {
       duplicateFinder = new DuplicateFinder();
     }
 
     const mainWindow = getMainWindow();
-    const files = collectAllFiles(rootNode);
+    const rootNode = lastScanRoot && findNodeByPath(lastScanRoot, rootPath);
+    const files = rootNode ? collectAllFiles(rootNode) : [];
 
     const groups = await duplicateFinder.findDuplicates(files, (hashed, total) => {
       mainWindow?.webContents.send('duplicates:progress', { hashed, total });

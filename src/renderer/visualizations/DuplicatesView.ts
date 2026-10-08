@@ -168,7 +168,7 @@ export class DuplicatesView {
     store.startFindingDuplicates();
 
     try {
-      await window.storageMap.duplicates.scan(state.scanResult.root);
+      await window.storageMap.duplicates.scan(state.scanResult.root.path);
     } catch (err) {
       console.error('Failed to find duplicates:', err);
     }

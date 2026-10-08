@@ -117,7 +117,7 @@ export class BarChart {
 
     const collectFiles = (node: FileNode) => {
       if (!node.isDirectory) {
-        files.push(node);
+        if (!node.isAggregate) files.push(node);
       } else if (node.children) {
         for (const child of node.children) {
           collectFiles(child);

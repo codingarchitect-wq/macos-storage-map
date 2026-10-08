@@ -1,12 +1,18 @@
-import { FileNode, VolumeInfo, CaddyItem, ScanProgress, DuplicateGroup, AppPreferences, FileCategory } from '../../shared/types';
+import { FileNode, VolumeInfo, CaddyItem, ScanProgress, DuplicateGroup, AppPreferences, FileCategory, CategorySnapshot } from '../../shared/types';
+import { VIEW_NODE_BUDGET, findNodeByPath, hasUnloadedNodes, mergeSubtree } from '../../shared/tree';
+
+// Enough for a directory's direct children (the scanner keeps at most ~1000 per directory)
+const CHILDREN_FETCH_BUDGET = 2000;
 
 export type ViewType = 'treemap' | 'sunburst' | 'barchart' | 'columns' | 'timeline' | 'duplicates';
 
 export interface AppState {
   volumes: VolumeInfo[];
   selectedVolume: VolumeInfo | null;
-  scanResult: { root: FileNode; volumeInfo: VolumeInfo } | null;
+  scanResult: { root: FileNode; volumeInfo: VolumeInfo; categoryTotals: CategorySnapshot[] } | null;
   currentPath: FileNode | null;
+  // Bumped when loaded subtrees are attached to the tree in place
+  treeVersion: number;
   navigationHistory: FileNode[];
   navigationIndex: number;
   isScanning: boolean;
@@ -30,6 +36,7 @@ class Store {
     selectedVolume: null,
     scanResult: null,
     currentPath: null,
+    treeVersion: 0,
     navigationHistory: [],
     navigationIndex: -1,
     isScanning: false,
@@ -52,6 +59,9 @@ class Store {
   };
 
   private listeners: Listener[] = [];
+  // Paths whose subtree was fetched with the full node budget
+  private loadedRoots = new Set<string>();
+  private pendingLoads = new Set<string>();
 
   getState(): Readonly<AppState> {
     return this.state;
@@ -98,12 +108,13 @@ class Store {
     this.emit();
   }
 
-  completeScan(root: FileNode, volumeInfo: VolumeInfo): void {
+  completeScan(root: FileNode, volumeInfo: VolumeInfo, categoryTotals: CategorySnapshot[]): void {
+    this.loadedRoots = new Set([root.path]);
     this.state = {
       ...this.state,
       isScanning: false,
       scanProgress: null,
-      scanResult: { root, volumeInfo },
+      scanResult: { root, volumeInfo, categoryTotals },
       currentPath: root,
       navigationHistory: [root],
       navigationIndex: 0
@@ -133,16 +144,61 @@ class Store {
   navigateTo(node: FileNode): void {
     if (!node.isDirectory) return;
 
+    // Views pass pruned copies of nodes; use the store's own node so loaded subtrees attach to the tree
+    const root = this.state.scanResult?.root;
+    const target = (root && findNodeByPath(root, node.path)) || node;
+
     const newHistory = this.state.navigationHistory.slice(0, this.state.navigationIndex + 1);
-    newHistory.push(node);
+    newHistory.push(target);
 
     this.state = {
       ...this.state,
-      currentPath: node,
+      currentPath: target,
       navigationHistory: newHistory,
       navigationIndex: newHistory.length - 1
     };
     this.emit();
+    this.ensureSubtreeLoaded(target);
+  }
+
+  // Makes sure the views have a full budget of nodes below `node` to draw
+  private ensureSubtreeLoaded(node: FileNode): void {
+    if (this.loadedRoots.has(node.path) || !hasUnloadedNodes(node)) return;
+    void this.loadSubtree(node, VIEW_NODE_BUDGET);
+  }
+
+  ensureChildrenLoaded(node: FileNode): void {
+    if (!node.childrenUnloaded) return;
+    void this.loadSubtree(node, CHILDREN_FETCH_BUDGET);
+  }
+
+  private async loadSubtree(node: FileNode, maxNodes: number): Promise<void> {
+    const scanResult = this.state.scanResult;
+    const key = `${maxNodes}:${node.path}`;
+    if (!scanResult || this.pendingLoads.has(key)) return;
+
+    this.pendingLoads.add(key);
+    try {
+      const subtree = await window.storageMap.scan.getSubtree(node.path, maxNodes);
+      // Drop the result if a new scan replaced the tree meanwhile
+      if (!subtree || this.state.scanResult !== scanResult) return;
+
+      mergeSubtree(node, subtree);
+      if (maxNodes >= VIEW_NODE_BUDGET) {
+        this.loadedRoots.add(node.path);
+      }
+
+      this.state = {
+        ...this.state,
+        treeVersion: this.state.treeVersion + 1,
+        highlightedNodes: this.computeHighlights(this.state.searchQuery)
+      };
+      this.emit();
+    } catch (err) {
+      console.error('Failed to load folder contents:', err);
+    } finally {
+      this.pendingLoads.delete(key);
+    }
   }
 
   navigateBack(): void {
@@ -155,6 +211,7 @@ class Store {
       navigationIndex: newIndex
     };
     this.emit();
+    this.ensureSubtreeLoaded(this.state.navigationHistory[newIndex]);
   }
 
   navigateForward(): void {
@@ -167,6 +224,7 @@ class Store {
       navigationIndex: newIndex
     };
     this.emit();
+    this.ensureSubtreeLoaded(this.state.navigationHistory[newIndex]);
   }
 
   navigateHome(): void {
@@ -181,15 +239,19 @@ class Store {
   }
 
   setSearchQuery(query: string): void {
+    const highlightedNodes = this.computeHighlights(query);
+    this.state = { ...this.state, searchQuery: query, highlightedNodes };
+    this.emit();
+  }
+
+  private computeHighlights(query: string): Set<string> {
     const highlightedNodes = new Set<string>();
 
     if (query && this.state.currentPath) {
-      const lowerQuery = query.toLowerCase();
-      this.findMatchingNodes(this.state.currentPath, lowerQuery, highlightedNodes);
+      this.findMatchingNodes(this.state.currentPath, query.toLowerCase(), highlightedNodes);
     }
 
-    this.state = { ...this.state, searchQuery: query, highlightedNodes };
-    this.emit();
+    return highlightedNodes;
   }
 
   private findMatchingNodes(node: FileNode, query: string, matches: Set<string>): void {
@@ -205,6 +267,9 @@ class Store {
   }
 
   addToCaddy(node: FileNode): void {
+    // Placeholders carry their parent folder's path; deleting it would remove the whole folder
+    if (node.isAggregate) return;
+
     if (this.state.caddy.some(item => item.node.id === node.id)) {
       return;
     }

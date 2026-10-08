@@ -2,7 +2,7 @@ import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron';
 import {
   FileNode,
   ScanProgress,
-  ScanResult,
+  ScanComplete,
   VolumeInfo,
   DuplicateGroup,
   ScanHistoryEntry,
@@ -13,11 +13,14 @@ type Callback<T> = (data: T) => void;
 
 const api = {
   scan: {
-    start: (path: string): Promise<ScanResult> =>
+    start: (path: string): Promise<void> =>
       ipcRenderer.invoke('scan:start', path),
 
     stop: (): Promise<void> =>
       ipcRenderer.invoke('scan:stop'),
+
+    getSubtree: (path: string, maxNodes: number): Promise<FileNode | null> =>
+      ipcRenderer.invoke('scan:getSubtree', path, maxNodes),
 
     onProgress: (callback: Callback<ScanProgress>): (() => void) => {
       const handler = (_event: IpcRendererEvent, progress: ScanProgress) => callback(progress);
@@ -25,14 +28,8 @@ const api = {
       return () => ipcRenderer.removeListener('scan:progress', handler);
     },
 
-    onBatch: (callback: Callback<FileNode[]>): (() => void) => {
-      const handler = (_event: IpcRendererEvent, nodes: FileNode[]) => callback(nodes);
-      ipcRenderer.on('scan:batch', handler);
-      return () => ipcRenderer.removeListener('scan:batch', handler);
-    },
-
-    onComplete: (callback: Callback<ScanResult>): (() => void) => {
-      const handler = (_event: IpcRendererEvent, result: ScanResult) => callback(result);
+    onComplete: (callback: Callback<ScanComplete>): (() => void) => {
+      const handler = (_event: IpcRendererEvent, result: ScanComplete) => callback(result);
       ipcRenderer.on('scan:complete', handler);
       return () => ipcRenderer.removeListener('scan:complete', handler);
     },
@@ -73,8 +70,8 @@ const api = {
   },
 
   duplicates: {
-    scan: (rootNode: FileNode): Promise<DuplicateGroup[]> =>
-      ipcRenderer.invoke('duplicates:scan', rootNode),
+    scan: (rootPath: string): Promise<DuplicateGroup[]> =>
+      ipcRenderer.invoke('duplicates:scan', rootPath),
 
     onProgress: (callback: Callback<{ hashed: number; total: number }>): (() => void) => {
       const handler = (_event: IpcRendererEvent, progress: { hashed: number; total: number }) =>

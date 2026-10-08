@@ -53,7 +53,7 @@ export class Treemap {
     const aggregatedRoot = this.aggregateSmallFiles(prunedRoot, state.preferences.smallFileThreshold);
 
     const hierarchy = d3.hierarchy(aggregatedRoot)
-      .sum(d => d.isDirectory ? 0 : d.size)
+      .sum(d => d.isDirectory && d.children ? 0 : d.size)
       .sort((a, b) => (b.value || 0) - (a.value || 0));
 
     const treemapLayout = d3.treemap<FileNode>()
@@ -141,7 +141,8 @@ export class Treemap {
           isDirectory: false,
           modifiedTime: Date.now(),
           createdTime: Date.now(),
-          category: 'other'
+          category: 'other',
+          isAggregate: true
         });
       }
     }
@@ -218,7 +219,8 @@ export class Treemap {
         isDirectory: false,
         modifiedTime: Date.now(),
         createdTime: Date.now(),
-        category: 'other'
+        category: 'other',
+        isAggregate: true
       });
     } else {
       aggregated.push(...smallFiles);
